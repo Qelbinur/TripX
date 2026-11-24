@@ -1,0 +1,8 @@
+{
+  "name": "TripX",
+  "description": "TripX — Birlikdə kəşf edək",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

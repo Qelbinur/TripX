@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="az">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>TripX</title>
+    <meta
+      name="description"
+      content="TripX — Birlikdə kəşf edək"
+    />
+    <meta property="og:title" content="TripX" />
+    <meta
+      property="og:description"
+      content="TripX — Birlikdə kəşf edək"
+    />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- PWA & Mobile Viewport Meta Tags -->
+    <meta name="theme-color" content="#FFFFFF" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="TripX" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon.svg" />
+    <link rel="alternate icon" href="/favicon.ico" />
+
+    <!-- Typography: Plus Jakarta Sans (Display/Brand) + Manrope (Body with full Azerbaijani glyph support) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap"
+      rel="stylesheet"
+    />
+
+    <!-- Prevent theme flash on initial load -->
+    <script>
+      (function () {
+        try {
+          var saved = localStorage.getItem('tripx-theme');
+          var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var isDark = saved ? saved === 'dark' : prefersDark;
+          if (isDark) {
+            document.documentElement.classList.add('dark');
+            var meta = document.querySelector('meta[name="theme-color"]');
+            if (meta) meta.setAttribute('content', '#0E1116');
+          }
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body class="bg-[#E7ECF2] text-[#141A23] dark:bg-[#0E1116] dark:text-[#EEF2F6] antialiased selection:bg-[#1F5D6B]/15 selection:text-[#1F5D6B] dark:selection:bg-[#4FA3B3]/25 dark:selection:text-[#E2F3F6]">
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
