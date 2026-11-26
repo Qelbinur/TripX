@@ -1,35 +1,40 @@
 import React, { useState } from 'react';
-import type { User } from '@supabase/supabase-js';
 import { ArrowLeft, CheckCircle2, Eye, EyeOff, LogOut } from 'lucide-react';
-import { formatSupabaseAuthError, supabase } from '../lib/supabase';
-import { upsertUserProfile } from '../services/placesService';
 
 type AccountMode = 'login' | 'register' | 'forgot';
 
-interface AccountViewProps {
-  user: User | null;
+export interface LocalAccount {
+  name: string;
+  email: string;
 }
 
-export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
+interface AccountViewProps {
+  account: LocalAccount | null;
+  onChangeAccount: (next: LocalAccount | null) => void;
+  isDatabaseConnected?: boolean;
+}
+
+export const AccountView: React.FC<AccountViewProps> = ({
+  account,
+  onChangeAccount,
+  isDatabaseConnected = false,
+}) => {
   const [mode, setMode] = useState<AccountMode>('login');
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [infoMessage, setInfoMessage] = useState<string | null>(null);
   const [resetSent, setResetSent] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const switchMode = (nextMode: AccountMode) => {
     setMode(nextMode);
     setError(null);
-    setInfoMessage(null);
     setResetSent(false);
     setShowPassword(false);
   };
 
-  const handleLoginSubmit = async (e: React.FormEvent) => {
+  const handleLoginSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
@@ -40,32 +45,17 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
       setError('Parol ən azı 6 simvoldan ibarət olmalıdır.');
       return;
     }
+    if (!isDatabaseConnected) {
+      setError('Verilənlər bazası ilə əlaqə yoxdur. Hesaba daxil olmaq mümkün olmadı.');
+      return;
+    }
 
     setError(null);
-    setInfoMessage(null);
-    setIsSubmitting(true);
-
-    try {
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: trimmedEmail,
-        password,
-      });
-      if (signInError) {
-        setError(formatSupabaseAuthError(signInError.message));
-      } else {
-        if (data.user) {
-          void upsertUserProfile(data.user);
-        }
-        setPassword('');
-      }
-    } catch {
-      setError('Şəbəkə xətası baş verdi. Yenidən cəhd edin.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    onChangeAccount({ name: name.trim(), email: trimmedEmail });
+    setPassword('');
   };
 
-  const handleRegisterSubmit = async (e: React.FormEvent) => {
+  const handleRegisterSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
     const trimmedEmail = email.trim();
@@ -81,84 +71,39 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
       setError('Parol ən azı 6 simvol olmalıdır.');
       return;
     }
+    if (!isDatabaseConnected) {
+      setError('Verilənlər bazası ilə əlaqə yoxdur. Qeydiyyat mümkün olmadı.');
+      return;
+    }
 
     setError(null);
-    setInfoMessage(null);
-    setIsSubmitting(true);
-
-    try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email: trimmedEmail,
-        password,
-        options: {
-          data: {
-            full_name: trimmedName,
-          },
-        },
-      });
-
-      if (signUpError) {
-        setError(formatSupabaseAuthError(signUpError.message));
-      } else if (!data.session) {
-        setInfoMessage(
-          `${trimmedEmail} ünvanına təsdiq linki göndərildi. Emailinizi təsdiqləyib daxil olun.`
-        );
-        setPassword('');
-      } else {
-        if (data.user) {
-          void upsertUserProfile(data.user);
-        }
-        setPassword('');
-      }
-    } catch {
-      setError('Qeydiyyat zamanı şəbəkə xətası baş verdi.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    onChangeAccount({ name: trimmedName, email: trimmedEmail });
+    setPassword('');
   };
 
-  const handleForgotSubmit = async (e: React.FormEvent) => {
+  const handleForgotSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedEmail = email.trim();
     if (!trimmedEmail || !trimmedEmail.includes('@')) {
       setError('Bərpa üçün düzgün email daxil edin.');
       return;
     }
+    if (!isDatabaseConnected) {
+      setError('Verilənlər bazası ilə əlaqə yoxdur. Şifrə bərpası mümkün olmadı.');
+      return;
+    }
 
     setError(null);
-    setIsSubmitting(true);
-
-    try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(trimmedEmail, {
-        redirectTo: window.location.origin,
-      });
-      if (resetError) {
-        setError(formatSupabaseAuthError(resetError.message));
-      } else {
-        setResetSent(true);
-      }
-    } catch {
-      setError('Şəbəkə xətası baş verdi. Yenidən cəhd edin.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    setResetSent(true);
   };
 
-  const handleSignOut = async () => {
-    setIsSubmitting(true);
-    try {
-      await supabase.auth.signOut();
-      setPassword('');
-      switchMode('login');
-    } finally {
-      setIsSubmitting(false);
-    }
+  const handleSignOut = () => {
+    onChangeAccount(null);
+    setPassword('');
+    switchMode('login');
   };
 
-  const displayName =
-    typeof user?.user_metadata?.full_name === 'string' && user.user_metadata.full_name.trim()
-      ? user.user_metadata.full_name.trim()
-      : 'Xoş gəlmisiniz';
+  const displayName = account?.name ? account.name : 'Xoş gəlmisiniz';
 
   return (
     <section
@@ -166,7 +111,7 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
       className="tripx-enter flex w-full flex-1 items-center justify-center px-4 py-6 sm:px-6"
     >
       <div className="w-full max-w-sm rounded-3xl border border-[#141A23]/[0.07] bg-white p-6 shadow-[0_12px_32px_rgba(17,34,51,0.06)] transition-colors duration-200 sm:p-7 dark:border-[#EEF2F6]/[0.08] dark:bg-[#161B22] dark:shadow-[0_16px_36px_rgba(0,0,0,0.42)]">
-        {user ? (
+        {account ? (
           <div className="space-y-5 text-center">
             <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-[#E4F0F3] text-[#1F5D6B] dark:bg-[#1D323A] dark:text-[#6BC0D1]">
               <CheckCircle2 className="h-6 w-6" aria-hidden="true" />
@@ -176,17 +121,16 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
               <h1 className="font-display text-lg font-semibold text-[#141A23] dark:text-[#EEF2F6]">
                 {displayName}
               </h1>
-              <p className="text-sm text-[#5B6472] dark:text-[#94A0B2]">{user.email}</p>
+              <p className="text-sm text-[#5B6472] dark:text-[#94A0B2]">{account.email}</p>
             </div>
 
             <button
               type="button"
               onClick={handleSignOut}
-              disabled={isSubmitting}
-              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-[#141A23]/12 bg-transparent px-4 py-2.5 text-sm font-medium text-[#141A23] transition-colors duration-150 hover:bg-[#F7F8FA] active:scale-[0.98] disabled:opacity-50 dark:border-[#EEF2F6]/14 dark:text-[#EEF2F6] dark:hover:bg-[#1E252F] cursor-pointer"
+              className="flex min-h-[48px] w-full items-center justify-center gap-2 rounded-xl border border-[#141A23]/12 bg-transparent px-4 py-2.5 text-sm font-medium text-[#141A23] transition-colors duration-150 hover:bg-[#F7F8FA] active:scale-[0.98] dark:border-[#EEF2F6]/14 dark:text-[#EEF2F6] dark:hover:bg-[#1E252F] cursor-pointer"
             >
               <LogOut className="h-4 w-4" aria-hidden="true" />
-              <span>{isSubmitting ? 'Çıxılır...' : 'Çıxış et'}</span>
+              <span>Çıxış et</span>
             </button>
           </div>
         ) : (
@@ -277,16 +221,14 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
                 <div className="space-y-2.5 pt-1">
                   <button
                     type="submit"
-                    disabled={isSubmitting}
-                    className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F5D6B] dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
+                    className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F5D6B] dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
                   >
-                    {isSubmitting ? 'Yoxlanılır...' : 'Daxil ol'}
+                    Daxil ol
                   </button>
 
                   <button
                     type="button"
                     onClick={() => switchMode('register')}
-                    disabled={isSubmitting}
                     className="flex min-h-[48px] w-full items-center justify-center rounded-xl border border-[#141A23]/12 bg-transparent px-4 py-2.5 text-sm font-medium text-[#141A23] transition-all duration-150 hover:bg-[#F7F8FA] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F5D6B] dark:border-[#EEF2F6]/14 dark:text-[#EEF2F6] dark:hover:bg-[#1E252F] cursor-pointer"
                   >
                     Qeydiyyat
@@ -313,27 +255,7 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
                   </div>
                 </div>
 
-                {infoMessage ? (
-                  <div className="space-y-5">
-                    <div className="flex items-start gap-3 rounded-2xl bg-[#F0F7F8] p-4 text-sm text-[#164652] dark:bg-[#1B2C33] dark:text-[#BFE4EC]">
-                      <CheckCircle2
-                        className="mt-0.5 h-5 w-5 shrink-0 text-[#1F5D6B] dark:text-[#6BC0D1]"
-                        aria-hidden="true"
-                      />
-                      <p className="leading-relaxed">{infoMessage}</p>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => switchMode('login')}
-                      className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
-                    >
-                      Girişə qayıt
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-4">
+                <div className="space-y-4">
                       <div className="space-y-1.5">
                         <label
                           htmlFor="register-name"
@@ -416,10 +338,9 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
                     <div className="space-y-2.5 pt-1">
                       <button
                         type="submit"
-                        disabled={isSubmitting}
-                        className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] disabled:opacity-60 dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
+                        className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
                       >
-                        {isSubmitting ? 'Yaradılır...' : 'Qeydiyyatdan keç'}
+                        Qeydiyyatdan keç
                       </button>
 
                       <button
@@ -430,8 +351,6 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
                         Artıq hesabınız var? Daxil ol
                       </button>
                     </div>
-                  </>
-                )}
               </form>
             )}
 
@@ -507,10 +426,9 @@ export const AccountView: React.FC<AccountViewProps> = ({ user }) => {
 
                     <button
                       type="submit"
-                      disabled={isSubmitting}
-                      className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] disabled:opacity-60 dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
+                      className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
                     >
-                      {isSubmitting ? 'Göndərilir...' : 'Bərpa linki göndər'}
+                      Bərpa linki göndər
                     </button>
                   </>
                 )}

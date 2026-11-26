@@ -4,27 +4,21 @@
  */
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import type { User } from '@supabase/supabase-js';
 import { APIProvider } from '@vis.gl/react-google-maps';
 import { Heart, Moon, Sun } from 'lucide-react';
-import { AccountView } from './components/AccountView';
+import { AccountView, type LocalAccount } from './components/AccountView';
 import { AddPlaceView } from './components/AddPlaceView';
 import { AzerbaijanMap } from './components/AzerbaijanMap';
 import { BottomNavBar, type ActiveTab } from './components/BottomNavBar';
-import { FilterView } from './components/FilterView';
+import { ExploreView } from './components/ExploreView';
+import { FavoritesView } from './components/FavoritesView';
 import { OfflineIndicator } from './components/OfflineIndicator';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { TripXLogo } from './components/TripXLogo';
 import { AZERBAIJAN_REGIONS } from './data/azerbaijanRegions';
+import { SAMPLE_PLACES } from './data/samplePlaces';
 import { useTheme } from './hooks/useTheme';
 import { GOOGLE_MAPS_API_KEY } from './lib/googleMaps';
-import { supabase } from './lib/supabase';
-import {
-  fetchPlacesFromSupabase,
-  savePlaceToSupabase,
-  upsertUserProfile,
-  type SavePlaceResult,
-} from './services/placesService';
 import {
   countActiveFilters,
   EMPTY_FILTER_STATE,
@@ -41,8 +35,9 @@ export default function App() {
   const { theme, toggleTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<ActiveTab>('map');
   const [filterState, setFilterState] = useState<FilterState>(EMPTY_FILTER_STATE);
-  const [places, setPlaces] = useState<PlaceSubmission[]>([]);
-  const [user, setUser] = useState<User | null>(null);
+  const [places, setPlaces] = useState<PlaceSubmission[]>(SAMPLE_PLACES);
+  const [favoriteIds, setFavoriteIds] = useState<string[]>([]);
+  const [account, setAccount] = useState<LocalAccount | null>(null);
   const [gmpQuotaExceeded, setGmpQuotaExceeded] = useState(false);
 
   useEffect(() => {
@@ -50,39 +45,6 @@ export default function App() {
     window.addEventListener('gmp-quota-exceeded', handleQuotaExceeded);
     return () => {
       window.removeEventListener('gmp-quota-exceeded', handleQuotaExceeded);
-    };
-  }, []);
-
-  useEffect(() => {
-    let active = true;
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (active) {
-        setUser(session?.user ?? null);
-        if (session?.user) {
-          void upsertUserProfile(session.user);
-        }
-      }
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user && (event === 'SIGNED_IN' || event === 'USER_UPDATED')) {
-        void upsertUserProfile(session.user);
-      }
-    });
-
-    fetchPlacesFromSupabase().then(({ places: remotePlaces }) => {
-      if (active && remotePlaces.length > 0) {
-        setPlaces(remotePlaces);
-      }
-    });
-
-    return () => {
-      active = false;
-      subscription.unsubscribe();
     };
   }, []);
 
@@ -117,17 +79,18 @@ export default function App() {
         ? prev.regions
         : [...prev.regions, districtId],
     }));
-    setActiveTab('filter');
+    setActiveTab('explore');
   }, []);
 
-  const handleAddPlace = useCallback(
-    async (draft: PlaceSubmission): Promise<SavePlaceResult> => {
-      const result = await savePlaceToSupabase(draft);
-      setPlaces((prev) => [result.savedPlace, ...prev]);
-      return result;
-    },
-    []
-  );
+  const handleAddPlace = useCallback((draft: PlaceSubmission) => {
+    setPlaces((prev) => [draft, ...prev]);
+  }, []);
+
+  const handleToggleFavorite = useCallback((placeId: string) => {
+    setFavoriteIds((prev) =>
+      prev.includes(placeId) ? prev.filter((id) => id !== placeId) : [placeId, ...prev]
+    );
+  }, []);
 
   const appShell = (
     <div className="flex min-h-dvh flex-col bg-[#E7ECF2] text-[#141A23] transition-colors duration-200 dark:bg-[#0E1116] dark:text-[#EEF2F6]">
@@ -166,14 +129,21 @@ export default function App() {
             <PWAInstallButton />
             <button
               type="button"
-              onClick={() => {
-                // Intentionally empty for now per minimalist shell stage
-              }}
+              onClick={() => setActiveTab('favorites')}
               aria-label="Sevimlilər"
               title="Sevimlilər"
-              className="inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl text-[#5B6472] transition-colors duration-150 hover:bg-[#141A23]/[0.05] hover:text-[#141A23] active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F5D6B] dark:text-[#94A0B2] dark:hover:bg-[#EEF2F6]/[0.07] dark:hover:text-[#EEF2F6] cursor-pointer"
+              aria-current={activeTab === 'favorites' ? 'page' : undefined}
+              className={`inline-flex min-h-[44px] min-w-[44px] items-center justify-center rounded-xl transition-colors duration-150 active:scale-[0.96] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F5D6B] cursor-pointer ${
+                activeTab === 'favorites'
+                  ? 'text-[#1F5D6B] bg-[#1F5D6B]/[0.08] dark:text-[#6BC0D1] dark:bg-[#4FA3B3]/[0.14]'
+                  : 'text-[#5B6472] hover:bg-[#141A23]/[0.05] hover:text-[#141A23] dark:text-[#94A0B2] dark:hover:bg-[#EEF2F6]/[0.07] dark:hover:text-[#EEF2F6]'
+              }`}
             >
-              <Heart className="h-[19px] w-[19px]" strokeWidth={1.75} aria-hidden="true" />
+              <Heart
+                className={`h-[19px] w-[19px] ${activeTab === 'favorites' ? 'fill-current' : ''}`}
+                strokeWidth={1.75}
+                aria-hidden="true"
+              />
             </button>
             <button
               type="button"
@@ -192,8 +162,25 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main viewport switching cleanly between Map, Filter, Add Place, and Account */}
+      {/* Main viewport switching cleanly between Explore, Favorites, Map, Add Place, and Account */}
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col pb-[calc(4.5rem+env(safe-area-inset-bottom))]">
+        {activeTab === 'explore' && (
+          <ExploreView
+            places={places}
+            filterState={filterState}
+            onChangeFilter={setFilterState}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={handleToggleFavorite}
+          />
+        )}
+        {activeTab === 'favorites' && (
+          <FavoritesView
+            places={places}
+            favoriteIds={favoriteIds}
+            onToggleFavorite={handleToggleFavorite}
+            onExplore={() => setActiveTab('explore')}
+          />
+        )}
         {activeTab === 'map' && (
           <AzerbaijanMap
             highlightedRegionIds={highlightedMapIds}
@@ -202,22 +189,15 @@ export default function App() {
             onDistrictSelect={handleDistrictSelectFromMap}
           />
         )}
-        {activeTab === 'filter' && (
-          <FilterView
-            value={filterState}
-            onChange={setFilterState}
-            onApply={() => setActiveTab('map')}
-          />
-        )}
         {activeTab === 'add-place' && (
           <AddPlaceView
-            user={user}
             onSubmitPlace={handleAddPlace}
-            onOpenAccount={() => setActiveTab('account')}
             onViewMap={() => setActiveTab('map')}
           />
         )}
-        {activeTab === 'account' && <AccountView user={user} />}
+        {activeTab === 'account' && (
+          <AccountView account={account} onChangeAccount={setAccount} />
+        )}
       </main>
 
       <OfflineIndicator />

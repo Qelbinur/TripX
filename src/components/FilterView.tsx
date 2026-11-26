@@ -17,6 +17,7 @@ interface FilterViewProps {
   value: FilterState;
   onChange: (next: FilterState) => void;
   onApply: () => void;
+  embedded?: boolean;
 }
 
 function toggleArrayItem(items: string[], target: string): string[] {
@@ -25,7 +26,12 @@ function toggleArrayItem(items: string[], target: string): string[] {
     : [...items, target];
 }
 
-export const FilterView: React.FC<FilterViewProps> = ({ value, onChange, onApply }) => {
+export const FilterView: React.FC<FilterViewProps> = ({
+  value,
+  onChange,
+  onApply,
+  embedded = false,
+}) => {
   const [showDetailed, setShowDetailed] = useState(() => countDetailedFilters(value) > 0);
   const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
 
@@ -96,7 +102,11 @@ export const FilterView: React.FC<FilterViewProps> = ({ value, onChange, onApply
   return (
     <section
       aria-label="Filtr"
-      className="tripx-enter mx-auto flex w-full max-w-xl flex-1 flex-col px-4 py-5 sm:px-6"
+      className={
+        embedded
+          ? 'tripx-enter w-full'
+          : 'tripx-enter mx-auto flex w-full max-w-xl flex-1 flex-col px-4 py-5 sm:px-6'
+      }
     >
       <div className="rounded-3xl border border-[#141A23]/[0.07] bg-white p-5 shadow-[0_12px_32px_rgba(17,34,51,0.06)] transition-colors duration-200 sm:p-6 dark:border-[#EEF2F6]/[0.08] dark:bg-[#161B22] dark:shadow-[0_16px_36px_rgba(0,0,0,0.42)]">
         {/* Header */}

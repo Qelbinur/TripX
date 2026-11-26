@@ -1,18 +1,18 @@
 import React from 'react';
-import { Compass, MapPinPlus, SlidersHorizontal, User } from 'lucide-react';
+import { Compass, Heart, MapPinPlus, User } from 'lucide-react';
 import { AzerbaijanMapIcon } from './AzerbaijanMapIcon';
 
-export type ActiveTab = 'map' | 'filter' | 'add-place' | 'account';
+export type ActiveTab = 'explore' | 'favorites' | 'map' | 'add-place' | 'account';
 
 interface NavItem {
-  id: 'explore' | 'filter' | 'add-place' | 'account';
+  id: 'explore' | 'favorites' | 'add-place' | 'account';
   label: string;
   icon: React.ComponentType<{ className?: string; strokeWidth?: number }>;
 }
 
 const LEFT_ITEMS: NavItem[] = [
   { id: 'explore', label: 'Kəşf et', icon: Compass },
-  { id: 'filter', label: 'Filtr', icon: SlidersHorizontal },
+  { id: 'favorites', label: 'Sevimlilər', icon: Heart },
 ];
 
 const RIGHT_ITEMS: NavItem[] = [
@@ -30,21 +30,11 @@ export const BottomNavBar: React.FC<BottomNavBarProps> = ({
   onSelectTab,
 }) => {
   const handleItemClick = (id: NavItem['id']) => {
-    if (id === 'filter') {
-      onSelectTab('filter');
-    } else if (id === 'add-place') {
-      onSelectTab('add-place');
-    } else if (id === 'account') {
-      onSelectTab('account');
-    }
-    // Kəşf et remains no-op for now
+    onSelectTab(id);
   };
 
   const renderSideItem = ({ id, label, icon: Icon }: NavItem) => {
-    const isActive =
-      (id === 'filter' && activeTab === 'filter') ||
-      (id === 'add-place' && activeTab === 'add-place') ||
-      (id === 'account' && activeTab === 'account');
+    const isActive = activeTab === id;
 
     return (
       <button

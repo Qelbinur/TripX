@@ -20,17 +20,14 @@ import {
   type MapPinPoint,
   type PlaceSubmission,
 } from '../types/filter';
-import type { User } from '@supabase/supabase-js';
-import type { SavePlaceResult } from '../services/placesService';
 import { ImageEditorModal } from './ImageEditorModal';
 import { MapPinPicker } from './MapPinPicker';
 import { RegionPickerModal } from './RegionPickerModal';
 
 interface AddPlaceViewProps {
-  user: User | null;
-  onSubmitPlace: (place: PlaceSubmission) => Promise<SavePlaceResult>;
-  onOpenAccount: () => void;
+  onSubmitPlace: (place: PlaceSubmission) => void;
   onViewMap: () => void;
+  isDatabaseConnected?: boolean;
 }
 
 type EditorSession =
@@ -60,10 +57,9 @@ function toggleArrayItem(items: string[], target: string): string[] {
 }
 
 export const AddPlaceView: React.FC<AddPlaceViewProps> = ({
-  user,
   onSubmitPlace,
-  onOpenAccount,
   onViewMap,
+  isDatabaseConnected = false,
 }) => {
   const [name, setName] = useState('');
   const [mainImage, setMainImage] = useState<string | null>(null);
@@ -73,8 +69,7 @@ export const AddPlaceView: React.FC<AddPlaceViewProps> = ({
   const [isRegionPickerOpen, setIsRegionPickerOpen] = useState(false);
   const [editorSession, setEditorSession] = useState<EditorSession | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitResult, setSubmitResult] = useState<SavePlaceResult | null>(null);
+  const [submittedPlace, setSubmittedPlace] = useState<PlaceSubmission | null>(null);
 
   const mainInputRef = useRef<HTMLInputElement>(null);
   const extraInputRef = useRef<HTMLInputElement>(null);
@@ -155,19 +150,22 @@ export const AddPlaceView: React.FC<AddPlaceViewProps> = ({
     setPin(null);
     setFilters(EMPTY_FILTER_STATE);
     setError(null);
-    setSubmitResult(null);
+    setSubmittedPlace(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const trimmedName = name.trim();
     if (!trimmedName) {
       setError('Zəhmət olmasa məkanın adını yazın.');
       return;
     }
+    if (!isDatabaseConnected) {
+      setError('Verilənlər bazası ilə əlaqə yoxdur. Məkanı qeydə almaq mümkün olmadı.');
+      return;
+    }
 
     setError(null);
-    setIsSubmitting(true);
 
     const draft: PlaceSubmission = {
       id: `${Date.now()}`,
@@ -179,14 +177,8 @@ export const AddPlaceView: React.FC<AddPlaceViewProps> = ({
       createdAt: Date.now(),
     };
 
-    try {
-      const result = await onSubmitPlace(draft);
-      setSubmitResult(result);
-    } catch {
-      setError('Yadda saxlanılarkən xəta baş verdi. Yenidən yoxlayın.');
-    } finally {
-      setIsSubmitting(false);
-    }
+    onSubmitPlace(draft);
+    setSubmittedPlace(draft);
   };
 
   const renderMultiSelectGroup = (
@@ -245,8 +237,7 @@ export const AddPlaceView: React.FC<AddPlaceViewProps> = ({
     filters.crowdSize.length > 0 ||
     filters.seasons.length > 0;
 
-  if (submitResult) {
-    const submittedPlace = submitResult.savedPlace;
+  if (submittedPlace) {
     const regionMap = new Map(AZERBAIJAN_REGIONS.map((r) => [r.id, r.name]));
     const summaryParts = [
       submittedPlace.filters.regions.map((id) => regionMap.get(id)).filter(Boolean).join(', '),
@@ -271,28 +262,8 @@ export const AddPlaceView: React.FC<AddPlaceViewProps> = ({
           </h1>
 
           <p className="mt-1.5 text-sm text-[#5B6472] dark:text-[#94A0B2]">
-            {submitResult.syncedToCloud
-              ? 'Məkan uğurla yadda saxlanıldı.'
-              : 'Məkan əlavə edildi.'}
+            Məkan əlavə edildi.
           </p>
-
-          {submitResult.message && (
-            <p className="mt-2 text-xs text-[#6B7482] dark:text-[#8A95A5]">
-              {submitResult.message}
-              {submitResult.requiresAuth && (
-                <>
-                  {' '}
-                  <button
-                    type="button"
-                    onClick={onOpenAccount}
-                    className="font-semibold text-[#1F5D6B] underline underline-offset-2 dark:text-[#6BC0D1] cursor-pointer"
-                  >
-                    Hesaba keç
-                  </button>
-                </>
-              )}
-            </p>
-          )}
 
           {summaryParts.length > 0 && (
             <p className="mt-2 text-xs text-[#6B7482] dark:text-[#8A95A5]">
@@ -617,26 +588,12 @@ export const AddPlaceView: React.FC<AddPlaceViewProps> = ({
         )}
 
         {/* Submit button */}
-        <div className="mt-7 space-y-2.5 border-t border-[#141A23]/[0.06] pt-4 dark:border-[#EEF2F6]/[0.07]">
-          {!user && (
-            <p className="text-center text-xs text-[#6B7482] dark:text-[#8A95A5]">
-              Məkanı hesabınızda saxlamaq üçün{' '}
-              <button
-                type="button"
-                onClick={onOpenAccount}
-                className="font-medium text-[#1F5D6B] underline underline-offset-2 dark:text-[#6BC0D1] cursor-pointer"
-              >
-                hesabınıza daxil olun
-              </button>
-              .
-            </p>
-          )}
+        <div className="mt-7 border-t border-[#141A23]/[0.06] pt-4 dark:border-[#EEF2F6]/[0.07]">
           <button
             type="submit"
-            disabled={isSubmitting}
-            className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] disabled:opacity-60 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F5D6B] dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
+            className="flex min-h-[48px] w-full items-center justify-center rounded-xl bg-[#1F5D6B] px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-[#194D59] active:scale-[0.98] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#1F5D6B] dark:bg-[#2B7788] dark:hover:bg-[#358A9D] cursor-pointer"
           >
-            {isSubmitting ? 'Yadda saxlanılır...' : 'Yeri əlavə et'}
+            Yeri əlavə et
           </button>
         </div>
       </form>
